@@ -156,7 +156,7 @@ func _size_x_changed(old_x: float) -> void:
 
 func _size_z_changed(old_z: float) -> void:
 	for path in path_list:
-		var new_texture_width = path.paint_x * old_z / size_z
+		var new_texture_width = path.paint_width * old_z / size_z
 		path.paint_width = int(new_texture_width)
 	
 	terrain_need_update.emit()
