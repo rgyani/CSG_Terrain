@@ -190,11 +190,11 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 		# Back to local space.
 		closest += pos
 		
-# Distance relative to path width.
-	vertex.y = closest.y
-	var dist = vertex.distance_to(closest)
-	var safe_path_width = max(1, path_width)
-	var dist_relative: float = (dist * min(div_x, div_z)) / (safe_path_width * min(size_x, size_z))
+		# Distance relative to path width.
+		vertex.y = closest.y
+		var dist = vertex.distance_to(closest)
+		var safe_path_width = max(1, path_width)
+		var dist_relative: float = (dist * min(div_x, div_z)) / (safe_path_width * min(size_x, size_z))
 		
 		# Quadratic smooth.
 		var lerp_weight: float = dist_relative * dist_relative * smoothness
@@ -250,6 +250,11 @@ func _get_closest_point_in_xz_plane(
 		baked_3D[idx], baked_3D[idx - 1],
 		# Vertical axis that cross the curve.
 		Vector3(prev_seg.x, -VERTICAL_AXIS_LENGTH, prev_seg.y), Vector3(prev_seg.x, VERTICAL_AXIS_LENGTH, prev_seg.y))[0]
+	
+	return closest_point
+
+## There are two ways to triangularize a quad. To better follow the path, convex in y will be used.
+func _update_quad_indices(idx: Vector2i, div_x: int, div_z: int) -> void:
 	var x: int = idx.x
 	if (x + 1) > div_x: return
 	var z: int = idx.y
