@@ -309,7 +309,7 @@ func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_
 	# Add indices of the bottom quad.
 	var index: int = (div_x + 1) * (div_z + 1)
 	var new_indices: PackedInt32Array = []
-	new_indices.resize(18 + div_x * 12 + div_z * 12)
+	new_indices.resize(18 + 6 * div_z + 6 * div_x)
 	
 	new_indices[0]= index
 	new_indices[1] = index + 1
@@ -353,16 +353,16 @@ func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_
 	
 	for i in range(div_x):
 		var up: int = div_z * i + i
-		new_indices[indices_idx + 6] = up + div_z + 1
-		new_indices[indices_idx + 7] = up
-		new_indices[indices_idx + 8] = index + 2
+		new_indices[indices_idx] = up + div_z + 1
+		new_indices[indices_idx + 1] = up
+		new_indices[indices_idx + 2] = index + 2
 		
 		var down: int = div_z + (div_z + 1) * i
-		new_indices[indices_idx + 9] = down
-		new_indices[indices_idx + 10] = down + div_z + 1
-		new_indices[indices_idx + 11] = index + 1
+		new_indices[indices_idx + 3] = down
+		new_indices[indices_idx + 4] = down + div_z + 1
+		new_indices[indices_idx + 5] = index + 1
 		
-		indices_idx += 12
+		indices_idx += 6
 	
 	indices.append_array(new_indices)
 	
