@@ -2,6 +2,10 @@
 ## This is what makes the terrain bend with the curves.
 class_name CSGTerrainMesh
 
+# Constants
+const VERTICAL_AXIS_LENGTH = 65536.0  # Used in calculating closest point on curve
+const MIN_SAFE_VALUE = 0.001
+
 # Vertex grid in [x][z] plane.
 var vertex_grid: Array = []
 
@@ -79,7 +83,7 @@ func _create_mesh_arrays(div_x: int, div_z: int, size_x: float, size_z: float) -
 			index += 6
 
 
-## Finalize the mesh and aplly to the CSGMesh3D node.
+## Finalize the mesh and apply to the CSGMesh3D node.
 func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: ArrayMesh) -> void:
 	# Mesh in ArrayMesh format.
 	var surface_array: Array = []
@@ -125,7 +129,7 @@ func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: Ar
 	# Closing the shape because Godot 4.4 need this.
 	_close_shape(size_x, size_z, div_x, div_z, surface_array)
 	
-	# Commit to the main mash.
+	# Commit to the main mesh.
 	mesh.clear_surfaces()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_array)
 
@@ -158,21 +162,21 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 		var grid_point: Vector3 = local_point * Vector3(div_x / size_x, 1, div_z / size_z)
 		var grid_index: Vector2i = Vector2i(int(grid_point.x), int(grid_point.z))
 		
-		# Exprore the region around the point. Cut out points outside the grid.
+		# Explore the region around the point. Cut out points outside the grid.
 		var range_min_x: int = -path_width + 1 + grid_index.x
 		range_min_x = clampi(range_min_x, 0, div_x + 1)
 		var range_max_x: int = path_width + 2 + grid_index.x
 		range_max_x = clampi(range_max_x, 0, div_x + 1)
-		var range_min_y: int = -path_width + 1 + grid_index.y
-		range_min_y = clampi(range_min_y, 0, div_z + 1)
-		var range_max_y: int = path_width + 2 + grid_index.y
-		range_max_y = clampi(range_max_y, 0, div_z + 1)
+		var range_min_z: int = -path_width + 1 + grid_index.y
+		range_min_z = clampi(range_min_z, 0, div_z + 1)
+		var range_max_z: int = path_width + 2 + grid_index.y
+		range_max_z = clampi(range_max_z, 0, div_z + 1)
 		
 		for i in range(range_min_x, range_max_x):
-			for j in range(range_min_y, range_max_y):
+			for j in range(range_min_z, range_max_z):
 				curve_vertices[Vector2i(i, j)] = true
 	
-	# Interpolate the size_z of the vertices.
+	# Interpolate the height (Y) of the vertices based on curve position.
 	for grid_idx in curve_vertices:
 		var vertex: Vector3 = vertex_grid[grid_idx.x][grid_idx.y]
 		var old_vertex: Vector3 = vertex
@@ -180,17 +184,17 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 		# Vertex in path space.
 		var path_vertex: Vector3 = vertex - pos
 		
-		# Get the closest point on the 3D curve without considering the size_z.
+		# Get the closest point on the 3D curve in the XZ plane only (follow height).
 		var closest: Vector3 = _get_closest_point_in_xz_plane(baked2D, baked3D, path_vertex)
 		
 		# Back to local space.
 		closest += pos
 		
-		# Distance relative to path witdh.
-		vertex.y = closest.y
-		var dist = vertex.distance_to(closest)
-		if path_width == 0: path_width = 1
-		var dist_relative: float = (dist * min(div_x, div_z)) / (path_width * min(size_x, size_z))
+# Distance relative to path width.
+	vertex.y = closest.y
+	var dist = vertex.distance_to(closest)
+	var safe_path_width = max(1, path_width)
+	var dist_relative: float = (dist * min(div_x, div_z)) / (safe_path_width * min(size_x, size_z))
 		
 		# Quadratic smooth.
 		var lerp_weight: float = dist_relative * dist_relative * smoothness
@@ -240,18 +244,12 @@ func _get_closest_point_in_xz_plane(
 		closest_point = Geometry3D.get_closest_points_between_segments(
 		baked_3D[idx], baked_3D[idx + 1],
 		# Vertical axis that cross the curve.
-		Vector3(next_seg.x, -65536, next_seg.y), Vector3(next_seg.x, 65536, next_seg.y))[0]
+		Vector3(next_seg.x, -VERTICAL_AXIS_LENGTH, next_seg.y), Vector3(next_seg.x, VERTICAL_AXIS_LENGTH, next_seg.y))[0]
 	else:
 		closest_point = Geometry3D.get_closest_points_between_segments(
 		baked_3D[idx], baked_3D[idx - 1],
 		# Vertical axis that cross the curve.
-		Vector3(prev_seg.x, -65536, prev_seg.y), Vector3(prev_seg.x, 65536, prev_seg.y))[0]
-	
-	return closest_point
-
-
-## There are two ways to triangularize a quad. To better follow the path, convex in y will be used.
-func _update_quad_indices(idx: Vector2i, div_x: int, div_z: int) -> void:
+		Vector3(prev_seg.x, -VERTICAL_AXIS_LENGTH, prev_seg.y), Vector3(prev_seg.x, VERTICAL_AXIS_LENGTH, prev_seg.y))[0]
 	var x: int = idx.x
 	if (x + 1) > div_x: return
 	var z: int = idx.y
@@ -290,8 +288,11 @@ func _update_quad_indices(idx: Vector2i, div_x: int, div_z: int) -> void:
 
 
 # CSG meshes must be closed in Godot 4.4, this is the price for fast CSG.
-# Making a cube bellow the tarrain.
+# Making a cube below the terrain.
 func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_array: Array):
+	if div_x < 1 or div_z < 1:
+		push_error("Invalid terrain divisions: div_x and div_z must be >= 1")
+		return
 	# Add vertices of the bottom quad.
 	var bottom_size = (size_x + size_z) / 2.0
 	var center: Vector3 = Vector3(0.5 * size_x, 0, 0.5 * size_z)

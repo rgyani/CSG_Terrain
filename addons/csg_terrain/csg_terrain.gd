@@ -6,13 +6,19 @@ extends CSGMesh3D
 
 signal terrain_need_update
 
+# Constants for terrain limits
+const MIN_TERRAIN_SIZE = 0.001
+const MAX_TERRAIN_SIZE = 1024.0
+const MIN_SUBDIVISIONS = 1
+const MAX_SUBDIVISIONS = 128
+
 ## Width of the terrain along the X axis.
 @export var size_x: float = 500:
 	set(value):
-		if value < 0.001:
-			value = 0.001
-		if value > 1024:
-			value = 1024
+		if value < MIN_TERRAIN_SIZE:
+			value = MIN_TERRAIN_SIZE
+		if value > MAX_TERRAIN_SIZE:
+			value = MAX_TERRAIN_SIZE
 		
 		var old_value = size_x
 		size_x = value
@@ -21,10 +27,10 @@ signal terrain_need_update
 ## Height of the terrain along the Z axis.
 @export var size_z: float = 500:
 	set(value):
-		if value < 0.001:
-			value = 0.001
-		if value > 1024:
-			value = 1024
+		if value < MIN_TERRAIN_SIZE:
+			value = MIN_TERRAIN_SIZE
+		if value > MAX_TERRAIN_SIZE:
+			value = MAX_TERRAIN_SIZE
 		
 		var old_value = size_z
 		size_z = value
@@ -53,7 +59,7 @@ signal terrain_need_update
 
 ## Create an optimized MeshInstance3D without the bottom cube.[br][br]
 ## Good topology is not guaranteed. You may need to edit it manually in 3D software.
-@export_tool_button("Bake Terrain Mesh", "MeshInstance3D") var nake_button = _bake_terrain
+@export_tool_button("Bake Terrain Mesh", "MeshInstance3D") var bake_button = _bake_terrain
 
 ## Create an GLTF file without the bottom cube.
 @export_tool_button("Export Terrain File", "File") var export_button = _export_terrain
