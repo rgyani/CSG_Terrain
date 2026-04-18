@@ -6,24 +6,43 @@ extends CSGMesh3D
 
 signal terrain_need_update
 
-## Size of each side of the square.
-@export var size: float = 500:
+## Width of the terrain along the X axis.
+@export var size_x: float = 500:
 	set(value):
 		if value < 0.001:
 			value = 0.001
 		if value > 1024:
 			value = 1024
 		
-		var old_value = size
-		size = value
-		_size_changed(old_value)
+		var old_value = size_x
+		size_x = value
+		_size_x_changed(old_value)
 
-## Number of subdivisions.
-@export_range(1, 128) var divs: int = 50:
+## Height of the terrain along the Z axis.
+@export var size_z: float = 500:
 	set(value):
-		var old_value = divs
-		divs = value
-		_divs_changed(old_value)
+		if value < 0.001:
+			value = 0.001
+		if value > 1024:
+			value = 1024
+		
+		var old_value = size_z
+		size_z = value
+		_size_z_changed(old_value)
+
+## Number of subdivisions along the width (X axis).
+@export_range(1, 128) var div_x: int = 50:
+	set(value):
+		var old_value = div_x
+		div_x = value
+		_div_x_changed(old_value)
+
+## Number of subdivisions along the height (Z axis).
+@export_range(1, 128) var div_z: int = 50:
+	set(value):
+		var old_value = div_z
+		div_z = value
+		_div_z_changed(old_value)
 
 ## Resolution of the mask applied to paths. Change if the path texture doesn't merge accordingly.
 @export_range(8, 1024) var path_mask_resolution: int = 512:
@@ -93,7 +112,7 @@ func _child_entered(child) -> void:
 		
 		if not is_instance_of(child, CSGTerrainPath):
 			child.set_script(CSGTerrainPath)
-			child.curve.bake_interval = size / divs
+			child.curve.bake_interval = min(size_x, size_z) / min(div_x, div_z)
 		
 		if not child.curve_changed.is_connected(_update_terrain):
 			child.curve_changed.connect(_update_terrain)
@@ -121,21 +140,34 @@ func _child_order_changed() -> void:
 			path_list.append(child)
 
 
-func _size_changed(old_size: float) -> void:
+func _size_x_changed(old_x: float) -> void:
 	for path in path_list:
-		var new_width = path.width * old_size / size
+		var new_width = path.width * old_x / size_x
 		path.width = int(new_width)
-		
-		var new_texture_width = path.paint_width * old_size / size
+	
+	terrain_need_update.emit()
+
+
+func _size_z_changed(old_z: float) -> void:
+	for path in path_list:
+		var new_texture_width = path.paint_x * old_z / size_z
 		path.paint_width = int(new_texture_width)
 	
 	terrain_need_update.emit()
 
 
-func _divs_changed(old_divs: int) -> void:
+func _div_x_changed(old_div_x: int) -> void:
 	for path in path_list:
-		var new_width: float = path.width * float(divs) / old_divs
-		path.width = int(new_width)
+		var new_x: float = path.size_x * float(div_x) / old_div_x
+		path.size_x = int(new_x)
+	
+	terrain_need_update.emit()
+
+
+func _div_z_changed(old_div_z: int) -> void:
+	for path in path_list:
+		var new_texture_z = path.paint_x * float(div_z) / old_div_z
+		path.paint_x = int(new_texture_z)
 	
 	terrain_need_update.emit()
 
@@ -158,8 +190,8 @@ func _update_terrain():
 	await get_tree().process_frame
 	
 	# CSG Terrain update methods.
-	terrain_mesh.update_mesh(mesh, path_list, divs, size)
-	textures.apply_textures(material, path_list, path_mask_resolution, size)
+	terrain_mesh.update_mesh(mesh, path_list, div_x, div_z, size_x, size_z)
+	textures.apply_textures(material, path_list, path_mask_resolution, size_x, size_z)
 	
 	is_updating = false
 
@@ -168,7 +200,7 @@ func _update_terrain():
 ## Good topology is not guaranteed. You may need to edit it manually in 3D software.
 func _bake_terrain() -> void:
 	await get_tree().process_frame
-	var new_mesh: MeshInstance3D = bake_export.create_mesh(self, size, divs)
+	var new_mesh: MeshInstance3D = bake_export.create_mesh(self, size_x, size_z, div_x, div_z)
 	add_sibling(new_mesh, true)
 	new_mesh.owner = owner
 
@@ -176,4 +208,4 @@ func _bake_terrain() -> void:
 ## Export terrain dialog box
 func _export_terrain():
 	await get_tree().process_frame
-	bake_export.export_terrain(self, size, divs)
+	bake_export.export_terrain(self, size_x, size_z, div_x, div_z)

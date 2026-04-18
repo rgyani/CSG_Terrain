@@ -5,7 +5,7 @@ var mask: Image = Image.new()
 
 
 # Main texture manager. This is what external classes should call.
-func apply_textures(material: Material, path_list: Array[CSGTerrainPath], mask_size: int, size: float) -> void:
+func apply_textures(material: Material, path_list: Array[CSGTerrainPath], mask_size: int, size_x: float, size_z: float) -> void:
 	if path_list.size() <= 0: 
 		return
 	
@@ -25,28 +25,29 @@ func apply_textures(material: Material, path_list: Array[CSGTerrainPath], mask_s
 	
 	for path in path_list:
 		if path.paint_width > 0:
-			_apply_path_mask(data, path, mask_size, size, material)
+			_apply_path_mask(data, path, mask_size, size_x, size_z, material)
 	
 	mask.set_data(mask_size, mask_size, false, Image.FORMAT_R8, data)
 	material.set_shader_parameter("path_mask", ImageTexture.create_from_image(mask))
 
 
-func _apply_path_mask(data: PackedByteArray, path: CSGTerrainPath, mask_size: int, size: float,  material: Material) -> void:
+func _apply_path_mask(data: PackedByteArray, path: CSGTerrainPath, mask_size: int, size_x: float, size_z: float, material: Material) -> void:
 	var texture_width: int = path.paint_width
 	var texture_smoothness: float = path.paint_smoothness
 	var pos: Vector3 = path.position
-	var center: Vector3 = Vector3(0.5 * size, 0, 0.5 * size)
+	var center: Vector3 = Vector3(0.5 * size_x, 0, 0.5 * size_z)
 	
 	# Recriate the 3D curve in xz plane.
 	var curve: Curve3D = path.curve
 	var curve2D: Curve2D = Curve2D.new()
 	curve2D.bake_interval = 2 * texture_width
+	var uv_scale = max(size_x, size_z)
 	for idx in path.curve.point_count:
 		var point3D = path.curve.get_point_position(idx)
 		# From path space to local space.
 		var localPoint: Vector3 = point3D + pos + center
 		# From local space to UV space.
-		localPoint = localPoint / size
+		localPoint = localPoint / uv_scale
 		# From UV space to pixel space.
 		localPoint *= mask_size
 		# Curve on xz plane.
@@ -55,11 +56,11 @@ func _apply_path_mask(data: PackedByteArray, path: CSGTerrainPath, mask_size: in
 		
 		# Curve "point in" and "point out" in path space.
 		var pointIn: Vector3 = curve.get_point_in(idx)
-		pointIn = pointIn * mask_size / size
+		pointIn = pointIn * mask_size / uv_scale
 		curve2D.set_point_in(idx, Vector2(pointIn.x, pointIn.z))
 		
 		var pointOut: Vector3 = curve.get_point_out(idx)
-		pointOut = pointOut * mask_size / size
+		pointOut = pointOut * mask_size / uv_scale
 		curve2D.set_point_out(idx, Vector2(pointOut.x, pointOut.z))
 	
 	# Godot 4.4 has support for closed (cyclic) 3D curves, but not in 2D. 
