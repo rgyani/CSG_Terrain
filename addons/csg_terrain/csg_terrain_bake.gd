@@ -5,11 +5,10 @@ var fileDialog: FileDialog = null
 var csg_mesh: CSGMesh3D = null
 var size_x: float = 0
 var size_z: float = 0
-var div_x: int = 0
-var div_z: int = 0
+var divs: int = 0
 
 
-func create_mesh(csg_mesh: CSGMesh3D, size_x: float, size_z: float, div_x: int, div_z: int) -> MeshInstance3D:
+func create_mesh(csg_mesh: CSGMesh3D, size_x: float, size_z: float, divs:int) -> MeshInstance3D:
 	# Creating a new meshArray.
 	var new_array_mesh: ArrayMesh = ArrayMesh.new()
 	new_array_mesh.clear_surfaces()
@@ -70,7 +69,7 @@ func create_mesh(csg_mesh: CSGMesh3D, size_x: float, size_z: float, div_x: int, 
 	var terrain_mesh: MeshInstance3D = MeshInstance3D.new()
 	terrain_mesh.name = csg_mesh.name + "-Mesh"
 	terrain_mesh.mesh = new_array_mesh
-	terrain_mesh.mesh.lightmap_size_hint = Vector2i(int(div_x * size_x / 50), int(div_z * size_z / 50))
+	terrain_mesh.mesh.lightmap_size_hint = Vector2i(divs * 10, divs * 10)
 	
 	# Copy Mesh parameters.
 	terrain_mesh.transform = csg_mesh.transform
@@ -86,12 +85,11 @@ func create_mesh(csg_mesh: CSGMesh3D, size_x: float, size_z: float, div_x: int, 
 
 
 ## Create a file dialog, then call _export_gltf when the file path is chosen.
-func export_terrain(_csg_mesh: CSGMesh3D, _size_x: float, _size_z: float, _div_x: int, _div_z: int) -> void:
+func export_terrain(_csg_mesh: CSGMesh3D, _size_x: float, _size_z: float, _divs: int) -> void:
 	csg_mesh = _csg_mesh
 	size_x = _size_x
 	size_z = _size_z
-	div_x = _div_x
-	div_z = _div_z
+	divs = _divs
 	
 	var path = "res://" + csg_mesh.name + ".glb"
 	var editorViewport = Engine.get_singleton(&"EditorInterface").get_editor_viewport_3d()
@@ -109,7 +107,7 @@ func export_terrain(_csg_mesh: CSGMesh3D, _size_x: float, _size_z: float, _div_x
 ## Export the mesh to GLTF file.
 func _export_gltf(path: String):
 	# Creating the new mesh.
-	var mesh = create_mesh(csg_mesh, size_x, size_z, div_x, div_z)
+	var mesh = create_mesh(csg_mesh, size_x, size_z, divs)
 	csg_mesh.get_parent().add_child(mesh, true)
 	
 	# Saving GLTF file.

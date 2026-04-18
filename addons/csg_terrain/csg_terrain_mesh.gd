@@ -14,62 +14,62 @@ var indices: PackedInt32Array = []
 
 
 ## Main mesh manager. This is what external classes should call.
-func update_mesh(mesh: ArrayMesh, path_list: Array[CSGTerrainPath], div_x: int, div_z: int, size_x: float, size_z: float) -> void:
+func update_mesh(mesh: ArrayMesh, path_list: Array[CSGTerrainPath], divs:int, size_x: float, size_z: float) -> void:
 	# Recrieate all mesh arrays. Seems expensive but is the last of our problems.
-	_create_mesh_arrays(div_x, div_z, size_x, size_z)
+	_create_mesh_arrays(divs, size_x, size_z)
 	
 	# Make the mesh follow each path, in tree order. 90% of the time is spent here.
 	for path in path_list:
-		if path.curve.bake_interval != (min(size_x, size_z) / min(div_x, div_z)):
-			path.curve.bake_interval = (min(size_x, size_z) / min(div_x, div_z))
+		if path.curve.bake_interval != (min(size_x, size_z) / divs):
+			path.curve.bake_interval = (min(size_x, size_z) / divs)
 		
 		if path.width > 0:
-			_follow_curve(path, div_x, div_z, size_x, size_z)
+			_follow_curve(path, divs, size_x, size_z)
 	
 	# Organize all the mesh at once. Again, seems expensive but is not an issue.
-	_commit_mesh(size_x, size_z, div_x, div_z, mesh)
+	_commit_mesh(size_x, size_z, divs, mesh)
 
 
 ## Create the terrain mesh according the vertex grid.
-func _create_mesh_arrays(div_x: int, div_z: int, size_x: float, size_z: float) -> void:
+func _create_mesh_arrays(divs: int, size_x: float, size_z: float) -> void:
 	# Vertex Grid follow the pattern [x][z]. The y axis is what will follow the curves.
 	vertex_grid.clear()
-	vertex_grid.resize(div_x + 1)
+	vertex_grid.resize(divs + 1)
 	
 	# Apply scale.
-	var step_x: float = size_x / div_x
-	var step_z: float = size_z / div_z
+	var step_x: float = size_x / divs
+	var step_z: float = size_z / divs
 	var center: Vector3 = Vector3(0.5 * size_x, 0, 0.5 * size_z)
-	for x in range(div_x + 1):
+	for x in range(divs + 1):
 		var vertices_z: PackedVector3Array = []
-		vertices_z.resize(div_z + 1)
-		for z in range(div_z + 1):
+		vertices_z.resize(divs + 1)
+		for z in range(divs + 1):
 			vertices_z[z] = Vector3(x * step_x, 0, z * step_z) - center
 		vertex_grid[x] = vertices_z
 	
 	# Make uvs.
 	uvs.clear()
-	uvs.resize((div_x + 1) * (div_z + 1))
-	var uv_step_x: float = 1.0 / div_x
-	var uv_step_z: float = 1.0 / div_z
+	uvs.resize((divs + 1) * (divs + 1))
+	var uv_step_x: float = 1.0 / divs
+	var uv_step_z: float = 1.0 / divs
 	var index: int = 0
-	for x in range(div_x + 1):
-		for z in range(div_z + 1):
+	for x in range(divs + 1):
+		for z in range(divs + 1):
 			uvs[index] = Vector2(x * uv_step_x, z * uv_step_z)
 			index += 1
 	
 	# Make quads with two triangles.
 	indices.clear()
-	indices.resize(div_x * div_z * 6)
+	indices.resize(divs * divs * 6)
 	var row: int = 0
 	var next_row: int = 0
 	index = 0
-	for x in range(div_x):
+	for x in range(divs):
 		row = next_row
-		next_row += div_z + 1
+		next_row += divs + 1
 		
 		# Making the two triangles. Ways to make it more readable are welcomed.
-		for z in range(div_z):
+		for z in range(divs):
 			# First triangle vertices.
 			indices[index] = z + row
 			indices[index + 1] = z + next_row + 1
@@ -84,7 +84,7 @@ func _create_mesh_arrays(div_x: int, div_z: int, size_x: float, size_z: float) -
 
 
 ## Finalize the mesh and apply to the CSGMesh3D node.
-func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: ArrayMesh) -> void:
+func _commit_mesh(size_x: float, size_z: float, divs: int, mesh: ArrayMesh) -> void:
 	# Mesh in ArrayMesh format.
 	var surface_array: Array = []
 	surface_array.resize(Mesh.ARRAY_MAX)
@@ -102,7 +102,7 @@ func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: Ar
 	# Make normals according Clever Normalization of a Mesh: https://iquilezles.org/articles/normals
 	# Making manually because using surfacetool was 3-5 times slower.
 	var normals: PackedVector3Array = []
-	normals.resize((div_x + 1) * (div_z + 1))
+	normals.resize((divs + 1) * (divs + 1))
 	
 	for index in range(0, indices.size(), 3):
 		# Vertices of the triangle.
@@ -127,7 +127,7 @@ func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: Ar
 	surface_array[Mesh.ARRAY_NORMAL] = normals
 	
 	# Closing the shape because Godot 4.4 need this.
-	_close_shape(size_x, size_z, div_x, div_z, surface_array)
+	_close_shape(size_x, size_z, divs, surface_array)
 	
 	# Commit to the main mesh.
 	mesh.clear_surfaces()
@@ -135,7 +135,7 @@ func _commit_mesh(size_x: float, size_z: float, div_x: int, div_z: int, mesh: Ar
 
 
 ## Bend the terrain size_z to follow the curve.
-func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, size_z: float) -> void:
+func _follow_curve(path: CSGTerrainPath, divs: int, size_x: float, size_z: float) -> void:
 	var path_width: int = path.paint_width
 	var smoothness: float = path.smoothness
 	
@@ -159,18 +159,18 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 		var local_point: Vector3 = point + pos + center
 		
 		# Point in the vertex_grid.
-		var grid_point: Vector3 = local_point * Vector3(div_x / size_x, 1, div_z / size_z)
+		var grid_point: Vector3 = local_point * Vector3(divs / size_x, 1, divs / size_z)
 		var grid_index: Vector2i = Vector2i(int(grid_point.x), int(grid_point.z))
 		
 		# Explore the region around the point. Cut out points outside the grid.
 		var range_min_x: int = -path_width + 1 + grid_index.x
-		range_min_x = clampi(range_min_x, 0, div_x + 1)
+		range_min_x = clampi(range_min_x, 0, divs + 1)
 		var range_max_x: int = path_width + 2 + grid_index.x
-		range_max_x = clampi(range_max_x, 0, div_x + 1)
+		range_max_x = clampi(range_max_x, 0, divs + 1)
 		var range_min_z: int = -path_width + 1 + grid_index.y
-		range_min_z = clampi(range_min_z, 0, div_z + 1)
+		range_min_z = clampi(range_min_z, 0, divs + 1)
 		var range_max_z: int = path_width + 2 + grid_index.y
-		range_max_z = clampi(range_max_z, 0, div_z + 1)
+		range_max_z = clampi(range_max_z, 0, divs + 1)
 		
 		for i in range(range_min_x, range_max_x):
 			for j in range(range_min_z, range_max_z):
@@ -194,7 +194,7 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 		vertex.y = closest.y
 		var dist = vertex.distance_to(closest)
 		var safe_path_width = max(1, path_width)
-		var dist_relative: float = (dist * min(div_x, div_z)) / (safe_path_width * min(size_x, size_z))
+		var dist_relative: float = (dist * divs) / (safe_path_width * min(size_x, size_z))
 		
 		# Quadratic smooth.
 		var lerp_weight: float = dist_relative * dist_relative * smoothness
@@ -206,7 +206,7 @@ func _follow_curve(path: CSGTerrainPath, div_x: int, div_z: int, size_x: float, 
 	
 	# Update indices on affected vertices.
 	for grid_idx in curve_vertices:
-		_update_quad_indices(grid_idx, div_x, div_z)
+		_update_quad_indices(grid_idx, divs)
 
 
 ## Get the closest point on the 2D curve and project on the 3D curve.
@@ -254,15 +254,15 @@ func _get_closest_point_in_xz_plane(
 	return closest_point
 
 ## There are two ways to triangularize a quad. To better follow the path, convex in y will be used.
-func _update_quad_indices(idx: Vector2i, div_x: int, div_z: int) -> void:
+func _update_quad_indices(idx: Vector2i, divs:int) -> void:
 	var x: int = idx.x
-	if (x + 1) > div_x: return
+	if (x + 1) > divs: return
 	var z: int = idx.y
-	if (z + 1) > div_z: return
+	if (z + 1) > divs: return
 	# Make faces with two triangles.
-	var row: int = x * (div_z + 1)
-	var next_row: int = row + div_z + 1
-	var index: int = 6 * (x * div_z + z)
+	var row: int = x * (divs + 1)
+	var next_row: int = row + divs + 1
+	var index: int = 6 * (x * divs + z)
 	 
 	# There are two ways to triangularize a quad. Each one with one diagonal.
 	# Getting the middle point of each diagonal.
@@ -294,9 +294,9 @@ func _update_quad_indices(idx: Vector2i, div_x: int, div_z: int) -> void:
 
 # CSG meshes must be closed in Godot 4.4, this is the price for fast CSG.
 # Making a cube below the terrain.
-func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_array: Array):
-	if div_x < 1 or div_z < 1:
-		push_error("Invalid terrain divisions: div_x and div_z must be >= 1")
+func _close_shape(size_x: float, size_z: float, divs: int, surface_array: Array):
+	if divs < 1 or divs < 1:
+		push_error("Invalid terrain divisions: divs and divs must be >= 1")
 		return
 	# Add vertices of the bottom quad.
 	var bottom_size = (size_x + size_z) / 2.0
@@ -313,9 +313,9 @@ func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_
 	vert_list.append_array(new_vertices)
 	
 	# Add indices of the bottom quad.
-	var index: int = (div_x + 1) * (div_z + 1)
+	var index: int = (divs + 1) * (divs + 1)
 	var new_indices: PackedInt32Array = []
-	new_indices.resize(18 + 6 * div_z + 6 * div_x)
+	new_indices.resize(18 + 6 * divs + 6 * divs)
 	
 	new_indices[0]= index
 	new_indices[1] = index + 1
@@ -328,11 +328,11 @@ func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_
 	# Left
 	new_indices[6] = index + 1
 	new_indices[7] = index
-	new_indices[8] = div_z
+	new_indices[8] = divs
 	# Right
 	new_indices[9] = index + 2
 	new_indices[10] = index + 3
-	new_indices[11] = div_z * (div_x + 1)
+	new_indices[11] = divs * (divs + 1)
 	# Up
 	new_indices[12] = index
 	new_indices[13] = index + 2
@@ -340,32 +340,32 @@ func _close_shape(size_x: float, size_z: float, div_x: int, div_z: int, surface_
 	# Down
 	new_indices[15] = index + 3
 	new_indices[16] = index + 1
-	new_indices[17] = (div_x) * (div_z + 1) + div_z
+	new_indices[17] = (divs) * (divs + 1) + divs
 	
 	# Connect indices from terrain plane with bottom quad.
 	var indices_idx: int = 18
-	for i in range(div_z):
+	for i in range(divs):
 		var left: int = i
 		new_indices[indices_idx] = left
 		new_indices[indices_idx + 1] = left + 1
 		new_indices[indices_idx + 2] = index
 		
-		var right: int = i + div_x * (div_z + 1)
+		var right: int = i + divs * (divs + 1)
 		new_indices[indices_idx + 3] = right + 1
 		new_indices[indices_idx + 4] = right
 		new_indices[indices_idx + 5] = index + 3
 		
 		indices_idx += 6
 	
-	for i in range(div_x):
-		var up: int = div_z * i + i
-		new_indices[indices_idx] = up + div_z + 1
+	for i in range(divs):
+		var up: int = divs * i + i
+		new_indices[indices_idx] = up + divs + 1
 		new_indices[indices_idx + 1] = up
 		new_indices[indices_idx + 2] = index + 2
 		
-		var down: int = div_z + (div_z + 1) * i
+		var down: int = divs + (divs + 1) * i
 		new_indices[indices_idx + 3] = down
-		new_indices[indices_idx + 4] = down + div_z + 1
+		new_indices[indices_idx + 4] = down + divs + 1
 		new_indices[indices_idx + 5] = index + 1
 		
 		indices_idx += 6
